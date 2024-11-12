@@ -20,7 +20,7 @@ The analysis uses three primary raw JSON data sources (from a MongoDB source):
 ## Analysis Queries
 The following SQL queries address the business stakeholder questions:
 
-### Query 1: [Insert your first chosen analysis question]
+### Query 1: [Insert first chosen analysis question]
 ```sql
 -- Insert SQL query here
 ```
