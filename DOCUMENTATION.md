@@ -1,13 +1,124 @@
 # Fetch Rewards Analytics Engineering Challenge Documentation
 
 ## Overview
-This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns.
+This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. I used GCP BigQuery SQL dialect and even set up a dummy project in GCP. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns.
 
 ## Data Sources
 The analysis uses three primary raw JSON data sources (from a MongoDB source):
 1. **Receipts Data**: Contains transaction information including points earned, items purchased, and receipt status
 2. **Users Data**: Contains user account information and activity status
 3. **Brands Data**: Contains brand and product categorization information
+
+## Initial Observations
+Before exploring the data, I created a Python script to process each json file to a BQ SQL-friendly format.  This primarily invovled flattening the the MongoDB objects (I had to do a lot of research here as I was unfamiliar with MongoDB json formats) and then updating the files to be in a new line delimited JSON format.  This is contained in the process_json.py script:
+```python
+import json
+
+# Func to flatten MongoDB objects but preserve arrays for BigQuery
+def flatten_mongo_object(obj, prefix=''):
+    if isinstance(obj, dict):
+        new_obj = {}
+        for key, value in obj.items():
+            if isinstance(value, dict):
+                if "$date" in value:
+                    new_obj[key] = value["$date"]
+                elif "$oid" in value:
+                    new_obj[key] = value["$oid"]
+                elif "$ref" in value and "$id" in value:
+                    if isinstance(value["$id"], dict) and "$oid" in value["$id"]:
+                        new_obj[key] = value["$id"]["$oid"]
+                    else:
+                        new_obj[key] = value["$id"]
+                else:
+                    # Handle nested objects
+                    nested_obj = flatten_mongo_object(value)
+                    # If nested object is a dict, flatten with dot notation
+                    if isinstance(nested_obj, dict):
+                        for nested_key, nested_value in nested_obj.items():
+                            new_obj[f"{key}.{nested_key}"] = nested_value
+                    else:
+                        new_obj[key] = nested_obj
+            elif isinstance(value, list):
+                # Keep arrays as arrays, but flatten their contents
+                new_obj[key] = [flatten_mongo_object(item) for item in value]
+            else:
+                new_obj[key] = value
+        return new_obj
+    elif isinstance(obj, list):
+        return [flatten_mongo_object(item) for item in obj]
+    return obj
+
+# Func to process each json file and parse them properly for BigQuery
+def process_json_file(filename):
+    # Read all lines and parse each line as JSON
+    with open(filename, 'r') as file:
+        objects = []
+        for line in file:
+            if line.strip():
+                obj = json.loads(line)
+                flattened_obj = flatten_mongo_object(obj)
+                objects.append(flattened_obj)
+    
+    # Write each object on a new line
+    output_filename = filename.replace('.json', '_processed.json')
+    with open(output_filename, 'w') as file:
+        for obj in objects:
+            json_line = json.dumps(obj)
+            file.write(json_line + '\n')
+    
+    print(f"Created {output_filename} with {len(objects)} objects")
+
+# Parse files
+process_json_file('brands.json')
+process_json_file('receipts.json')
+process_json_file('users.json')
+```
+
+Methods used to explore the data:
+- Built-in table explorer feature in BQ (new feature which is really cool!)  Here is an example screenshot of that feature:
+- ![BQ Table Explorer Example](./images/BQTableExplorerExample.png)
+- Simple SQL aggregations to look for duplicates and unique field values.  Here are a couple examples:
+Query:
+```sql
+select
+  _id
+  , count(*)
+from `fetch-analytics-proj.Staging.RawUser`
+group by 1 having count(*) > 2
+order by 2 desc
+```
+Result:
+![Checking User table for Duplicates](./images/UserDuplicateQry.png)
+
+Query:
+```sql
+select
+  _id
+  , count(*)
+from `fetch-analytics-proj.Staging.RawUser`
+group by 1 having count(*) > 2
+order by 2 desc
+```
+Result:
+![User.Role Query](./images/UserRoleQry.png)
+
+Once the processed json files were imported to tables in BQ, these were my observations:
+- Date/time fields are in a unix milliseconds format which I will transform to iso
+- There may be duplicates in the User table (to be investigated later on)
+- Receipt and Brand tables are unique on _id field.
+- User fields:
+  - User.role field also has 'fetch-staff' as a potential value though the schema for the project specifies that this field is a: 'constant value set to "CONSUMER"'
+- Brand fields: 
+  - name is better populated than brandCode
+  - Similarly, category is better populated than categoryCode
+  - barcode has a few dupes, though this is probably expected
+  - topBrand is a bool, but has a lot of NULLs, will likely transform NULLs to FALSE
+- Receipt fields:
+  - There are a lot of NULL purchasedItemCount records which is unexpected on first glance
+  - Similarly, a lot of NULL pointsEarned values, but maybe not all purchases result in earning reward points
+  - There are also a lot of NULL totalSpent records, given these are receipt entries, I would expect something was purchased
+  - bonusPointsEarnedReason field values are not very explanatory, would need more info from Stakeholders here
+  - rewardsReceiptItemList is a nested array field and likely should be in it's own table to be useful for analytics
 
 ## Data Model
 [Add link to Miro Board w/ ER diagram here]
