@@ -1,5 +1,15 @@
 # Fetch Rewards Analytics Engineering Challenge Documentation
 
+## Table of Contents
+1. [Overview](#overview)
+2. [Data Model](#1-data-model)
+3. [Analysis Queries](#2-analysis-queries)
+4. [Data Quality Assessment](#3-data-quality-assessment)
+5. [Questions for Stakeholder](#4-questions-for-stakeholder)
+
+## Overview
+[rest of your existing content...]
+
 ## Overview
 This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns. I primarily used Google Cloug Platform (GCP) BigQuery (BQ) SQL and even set up a dummy project in GCP. 
 
@@ -230,8 +240,7 @@ All data quality SQL script examples are included in the data_quality folder.
     - Checking for orphaned records is not relevant here as each dataset has it's own primary key
 
 
-## 4. Questions and Assumptions
-- To do: Document any assumptions made
+## 4. Questions for Stakeholder
 - To do: List questions that arose during analysis
 
 ### Performance Considerations
