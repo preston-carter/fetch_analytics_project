@@ -1,16 +1,21 @@
 # Fetch Rewards Analytics Engineering Challenge Documentation
 
 ## Overview
-This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. I used GCP BigQuery SQL dialect and even set up a dummy project in GCP. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns.
+This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns. I primarily used Google Cloug Platform (GCP) BigQuery (BQ) SQL and even set up a dummy project in GCP. 
+
+## Tools and Technologies Used
+- SQL Dialect: GCP BigQuery SQL
+- Python
+- GitHub
 
 ## Data Sources
-The analysis uses three primary raw JSON data sources (from a MongoDB source):
+The analysis uses three raw JSON data sources (from a MongoDB source):
 1. **Receipts Data**: Contains transaction information including points earned, items purchased, and receipt status
 2. **Users Data**: Contains user account information and activity status
 3. **Brands Data**: Contains brand and product categorization information
 
 ## Initial Observations
-Before exploring the data, I created a Python script to process each json file to a BQ SQL-friendly format.  This primarily invovled flattening the the MongoDB objects (I had to do a lot of research here as I was unfamiliar with MongoDB json formats) and then updating the files to be in a new line delimited JSON format.  This is contained in the process_json.py script:
+Before exploring the data, I created a Python script to process each json file to a BQ SQL-friendly format.  This primarily involved flattening the the MongoDB objects (I had to do a lot of research here as I was unfamiliar with MongoDB json formats) and then updating the files to be in a new line delimited JSON format.  This is contained in the process_json.py script:
 ```python
 import json
 
@@ -76,9 +81,8 @@ process_json_file('users.json')
 
 Methods used to explore the data:
 - Built-in table explorer feature in BQ (new feature which is really cool!)  Here is an example screenshot of that feature:
-- ![BQ Table Explorer Example](./images/BQTableExplorerExample.png)
+![BQ Table Explorer Example](./images/BQTableExplorerExample.png)
 - Simple SQL aggregations to look for duplicates and unique field values.  Here are a couple examples:
-Query:
 ```sql
 select
   _id
@@ -87,10 +91,8 @@ from `fetch-analytics-proj.Staging.RawUser`
 group by 1 having count(*) > 2
 order by 2 desc
 ```
-Result:
 ![Checking User table for Duplicates](./images/UserDuplicateQry.png)
 
-Query:
 ```sql
 select
   _id
@@ -99,7 +101,6 @@ from `fetch-analytics-proj.Staging.RawUser`
 group by 1 having count(*) > 2
 order by 2 desc
 ```
-Result:
 ![User.Role Query](./images/UserRoleQry.png)
 
 Once the processed json files were imported to tables in BQ, these were my observations:
@@ -111,7 +112,7 @@ Once the processed json files were imported to tables in BQ, these were my obser
 - Brand fields: 
   - name is better populated than brandCode
   - Similarly, category is better populated than categoryCode
-  - barcode has a few dupes, though this is probably expected
+  - barcode has a few dupes but the _id field is unique, so this may be expected
   - topBrand is a bool, but has a lot of NULLs, will likely transform NULLs to FALSE
 - Receipt fields:
   - There are a lot of NULL purchasedItemCount records which is unexpected on first glance
@@ -119,31 +120,63 @@ Once the processed json files were imported to tables in BQ, these were my obser
   - There are also a lot of NULL totalSpent records, given these are receipt entries, I would expect something was purchased
   - bonusPointsEarnedReason field values are not very explanatory, would need more info from Stakeholders here
   - rewardsReceiptItemList is a nested array field and likely should be in it's own table to be useful for analytics
+    - several nested bool fields that have NULLs
 
-## Data Model
-[Add link to Miro Board w/ ER diagram here]
+## 1. Data Model
+I created a strucutred relational data model using Miro. The model shows the relationship between the raw data through the simple transformation layer I created to a final dataset that will be used for analytics to answer the stakeholder's questions.
+![Data Model](./images/DataModel.png)
 
 ### Key Tables and Relationships
-- To do: Describe data model structure
-- To do: Document primary and foreign key relationships
-- To do: Explain any derived or calculated fields
+- The User, Brand, and Receipt tables are fairly straightforward.
+  - Date/Timestamp fields were transformed to an iso format.
+  - Minor field renaming, most notably the _id fields were renamed to add clarity between the datasets.
+  - A few fields were not exposed as they were not necessary for analytics (currently) or they were not very supportive dimensionally for the datasets with my limited knowledge of the data.
+- ReceiptItem was created from the nested array field, rewardsReceiptItemList, in the RawReceipt table.
+  - The unique id for the table was created by taking the receiptId and appending an incrementing integer for each item associated with the receipt record.
+- ReceiptItemDetail is the only analytics table exposed in the model.
+  - This table functions as a fact table at the most granular data level (receiptItemId) and joins the four transformation tables to access all necessary data fields for analysis.
+- The data model allows us to consider and analyze all stakeholder questions.
 
-## Analysis Queries
+## 2. Analysis Queries
 The following SQL queries address the business stakeholder questions:
 
-### Query 1: [Insert first chosen analysis question]
+### Query 1: What are the top 5 brands by receipts scanned for most recent month?
 ```sql
 -- Insert SQL query here
 ```
 **Explanation**: [Explain approach and findings]
 
-### Query 2: [Insert second chosen analysis question]
+### Query 2: How does the ranking of the top 5 brands by receipts scanned for the recent month compare to the ranking for the previous month?
 ```sql
 -- Insert SQL query here
 ```
 **Explanation**: [Explain approach and findings]
 
-## Data Quality Assessment
+### Query 3: When considering average spend from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+```sql
+-- Insert SQL query here
+```
+**Explanation**: [Explain approach and findings]
+
+### Query 4: When considering total number of items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+```sql
+-- Insert SQL query here
+```
+**Explanation**: [Explain approach and findings]
+
+### Query 5: Which brand has the most spend among users who were created within the past 6 months?
+```sql
+-- Insert SQL query here
+```
+**Explanation**: [Explain approach and findings]
+
+### Query 6: Which brand has the most transactions among users who were created within the past 6 months?
+```sql
+-- Insert SQL query here
+```
+**Explanation**: [Explain approach and findings]
+
+## 3. Data Quality Assessment
 ### Identified Issues
 1. [To do: List major data quality issues found]
 2. [To do: Include examples and impact]
@@ -162,16 +195,10 @@ The following SQL queries address the business stakeholder questions:
 # Include any setup or execution instructions
 ```
 
-## Tools and Technologies Used
-- SQL Dialect: GCP BigQuery SQL
-- Dataform
-- Python
-- GitHub
-
 ## Future Improvements
 - To do: Document any potential enhancements
 - To do: Note areas for optimization
 
-## Questions and Assumptions
+## 4. Questions and Assumptions
 - To do: Document any assumptions made
 - To do: List questions that arose during analysis
