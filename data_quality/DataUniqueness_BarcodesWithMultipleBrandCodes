@@ -1,0 +1,15 @@
+select
+  *
+from `fetch-analytics-proj.Production.Brand`
+-- I converted barcode to string in the Brand table to be consistent with ReceiptItem.barcode data type
+where barcode in 
+(
+  '511111704140'
+  , '511111305125'
+  , '511111504788'
+  , '511111204923'
+  , '511111504139'	
+  , '511111605058'
+  , '511111004790'
+)
+order by barcode, brandCode

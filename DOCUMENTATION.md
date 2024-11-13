@@ -214,7 +214,7 @@ All data quality SQL script examples are included in the data_quality folder.
 - Data Uniqueness
   - The raw users table contains many pure duplicates idenitifiable with the following query (user_duplicates.sql). After removing these, there are no remaining user duplicates (like a userId with 2 different roles for example). These were removed from the User table during data transformation.
   - There are a handful of barcodes with different brandCodes which seems incorrect. Given I do not know the full context of the data, I did not remove these.
-  ![Barcodes with Multiple BrandCodes](./images/BarcodesWithMultipleBrandCodes.png)
+![Barcodes with Multiple BrandCodes](./images/BarcodesWithMultipleBrandCodes.png)
 - Inconsistent Values & Data Types
   - The barcodes field in the Brand dataset is integer, but in the receipt item data, the barcodes are a string data type and have some non-integer characters.
   - Several boolean fields have NULLs. Generally NULLs should be treated as FALSE. It will be risky to filter against these fields if there are NULLs.
