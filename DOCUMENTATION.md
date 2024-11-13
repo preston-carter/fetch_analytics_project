@@ -3,18 +3,18 @@
 ## Overview
 This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns. I primarily used Google Cloug Platform (GCP) BigQuery (BQ) SQL and even set up a dummy project in GCP. 
 
-## Tools and Technologies Used
+### Tools and Technologies Used
 - SQL Dialect: GCP BigQuery SQL
 - Python
 - GitHub
 
-## Data Sources
+### Data Sources
 The analysis uses three raw JSON data sources (from a MongoDB source):
 1. **Receipts Data**: Contains transaction information including points earned, items purchased, and receipt status
 2. **Users Data**: Contains user account information and activity status
 3. **Brands Data**: Contains brand and product categorization information
 
-## Initial Observations
+### Initial Observations
 Before exploring the data, I created a Python script to process each json file to a BQ SQL-friendly format.  This primarily involved flattening the the MongoDB objects (I had to do a lot of research here as I was unfamiliar with MongoDB json formats) and then updating the files to be in a new line delimited JSON format.  This is contained in the process_json.py script:
 ```python
 import json
@@ -81,29 +81,34 @@ process_json_file('users.json')
 
 Methods used to explore the data:
 - Built-in table explorer feature in BQ (new feature which is really cool!)  Here is an example screenshot of that feature:
+
 ![BQ Table Explorer Example](./images/BQTableExplorerExample.png)
+
 - Simple SQL aggregations to look for duplicates and unique field values.  Here are a couple examples:
 ```sql
 select
   _id
   , count(*)
 from `fetch-analytics-proj.Staging.RawUser`
-group by 1 having count(*) > 2
+group by 1 having count(*) > 1
 order by 2 desc
 ```
+
 ![Checking User table for Duplicates](./images/UserDuplicateQry.png)
 
 ```sql
 select
-  _id
+  role
   , count(*)
 from `fetch-analytics-proj.Staging.RawUser`
-group by 1 having count(*) > 2
+group by 1
 order by 2 desc
 ```
+
 ![User.Role Query](./images/UserRoleQry.png)
 
 Once the processed json files were imported to tables in BQ, these were my observations:
+
 - Date/time fields are in a unix milliseconds format which I will transform to iso
 - There may be duplicates in the User table (to be investigated later on)
 - Receipt and Brand tables are unique on _id field.
@@ -122,8 +127,10 @@ Once the processed json files were imported to tables in BQ, these were my obser
   - rewardsReceiptItemList is a nested array field and likely should be in it's own table to be useful for analytics
     - several nested bool fields that have NULLs
 
+    
 ## 1. Data Model
 I created a strucutred relational data model using Miro. The model shows the relationship between the raw data through the simple transformation layer I created to a final dataset that will be used for analytics to answer the stakeholder's questions.
+
 ![Data Model](./images/DataModel.png)
 
 ### Key Tables and Relationships
@@ -137,8 +144,24 @@ I created a strucutred relational data model using Miro. The model shows the rel
   - This table functions as a fact table at the most granular data level (receiptItemId) and joins the four transformation tables to access all necessary data fields for analysis.
 - The data model allows us to consider and analyze all stakeholder questions.
 
+### Data Tranformation Layer
+I tranformed the raw data tables in order to parse date/time fields into a useable format, unnest arrays, remove duplicates, rename primary key fields, etc. I tried to keep renaming of fields to a minimum so that's easy to follow along.
+
+All transformation and the final analytics layer scripts are in the production_data folder.
+- production_data 
+  - Brand.sql
+  - Receipt.sql
+  - ReceiptItem.sql
+  - ReceiptItemDetail.sql
+  - User.sql
+
 ## 2. Analysis Queries
-The following SQL queries address the business stakeholder questions:
+
+The following SQL queries address the business stakeholder questions and are located in the repo here:
+- production_data
+  - 1and2_Top5BrandRecentAndPreviousMonth.sql
+  - 3and4_AvgSpendItemsPurchasedReceiptStatus.sql
+  - 5and6_BrandWithMostSpendAndTransactionsAmongNewUsers.sql
 
 ### Query 1: What are the top 5 brands by receipts scanned for most recent month?
 ```sql
@@ -176,29 +199,46 @@ The following SQL queries address the business stakeholder questions:
 ```
 **Explanation**: [Explain approach and findings]
 
+
+
 ## 3. Data Quality Assessment
 ### Identified Issues
-1. [To do: List major data quality issues found]
-2. [To do: Include examples and impact]
 
-### Methodology
-- To do: Describe how I discovered these issues
-- To do: Document my validation approach
+All data quality SQL script examples are included in the data_quality folder.
 
-## Performance Considerations
-- To do: Document any indexing strategies
-- To do: Explain partitioning decisions if applicable
-- To do: Note any potential scaling concerns
+- Data Completeness
+  - Many data fields are fairly incomplete and have a significant amount or majority of NULL values. Some of these seem particularly problematic (like a receipt having not having a purchasedItemCount/totalSpent). Here are some examples:
+    - Brand.categoryCode
+    - Receipt.purchasedItemCount
+    - User.lastLoginTimestamp
+- Data Uniqueness
+  - The raw users table contains many pure duplicates idenitifiable with the following query (user_duplicates.sql). After removing these, there are no remaining user duplicates (like a userId with 2 different roles for example). These were removed from the User table during data transformation.
+  - There are a handful of barcodes with different brandCodes which seems incorrect. Given I do not know the full context of the data, I did not remove these.
+  ![Barcodes with Multiple BrandCodes](./images/BarcodesWithMultipleBrandCodes.png)
+- Inconsistent Values & Data Types
+  - The barcodes field in the Brand dataset is integer, but in the receipt item data, the barcodes are a string data type and have some non-integer characters.
+  - Several boolean fields have NULLs. Generally NULLs should be treated as FALSE. It will be risky to filter against these fields if there are NULLs.
+  - The brandCode contains string values, NULLs, and '' empty strings.  Mixing nulls and empty strings is not good practice, it should be one or the other (preferrably NULLs) because this makes it much harder to filter against this field properly.
+- Unexpected Data Values
+  - 
+- Other Checks Considered
+  - Data freshness
+    - Not relevant as this sample dataset is historical (Data from 2021 are the most recent)
+  - Statistical Anomalies
+    - Given that the sample size of this dataset is rather small, it is not relevant (and likely misleading) to check for any statistical outliers
+  - Referential Integrity
+    - Checking for orphaned records is not relevant here as each dataset has it's own primary key
 
-## Setup and Execution
-```bash
-# Include any setup or execution instructions
-```
-
-## Future Improvements
-- To do: Document any potential enhancements
-- To do: Note areas for optimization
 
 ## 4. Questions and Assumptions
 - To do: Document any assumptions made
 - To do: List questions that arose during analysis
+
+### Performance Considerations
+- To do: Document any indexing strategies
+- To do: Explain partitioning decisions if applicable
+- To do: Note any potential scaling concerns
+
+## Future Improvements
+- To do: Document any potential enhancements
+- To do: Note areas for optimization
