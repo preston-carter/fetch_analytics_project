@@ -7,7 +7,7 @@ with MaxUserDate as
 
 select
   brandName
-  , sum(totalSpent) as TotalSpentSum
+  , round(sum(totalSpent),2) as TotalSpentSum
 from `fetch-analytics-proj.Production.ReceiptItemDetail`
 where userCreatedDate >= date_sub((select MaxUserCreatedDate from MaxUserDate), interval 6 month)
   and brandName is not null

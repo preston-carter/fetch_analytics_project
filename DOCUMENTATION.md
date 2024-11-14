@@ -143,6 +143,17 @@ I created a strucutred relational data model using Miro. The model shows the rel
 
 ![Data Model](./images/DataModel.png)
 
+Discussion:
+- While the model is simple, there is some storage duplication in that I am essentially replicating the raw data layer in the transformation layer and only updating a few fields while not exposing a few others. I'm doing this to show an ELT pipeline. Extract raw data, load it to BQ, and transform it as necessary. 
+- The only dataset in the analytics layer is also simply set up to solve the questions posed by the business stakeholder. This is efficient and performant given that I do not have full context of the data or if there are specific analytics and reporting requirements.
+- I considered adding some additional datasets in both the tranformation and analytics layers like the below. But in the end, I decided this is outside the scope of this project's purpose.
+  - Other dimensional tables for partners
+  - Or metrics views for a guess at some metrics that may be important to Fetch (maybe comparing points earned to dollars spent, etc)
+  - Or maybe a slowly-changing dimension for monitoring user data like logins
+- I dropped a few fields that were not necessary for the analytics layer or were fairly incomplete (mostly NULL). I generally take the approach to tranform and store as minimum as possible to meet business objectives to save on cost and query performance.
+- I could have modeled only the analytics layer table, joining directly to the raw tables, and perform the transformations within it. However, I wanted to show a full data pipeline model, from raw to staging/dimensional tables to a fact table - similar to the popular star schema. This is more commonly how an analytics team would model a data warehouse in the real world.
+
+
 ### Key Tables and Relationships
 - The User, Brand, and Receipt tables are fairly straightforward.
   - Date/Timestamp fields were transformed to an iso format.
@@ -175,39 +186,113 @@ The following SQL queries address the business stakeholder questions and are loc
 
 ### Query 1: What are the top 5 brands by receipts scanned for most recent month?
 ```sql
--- Insert SQL query here
+-- Latest Month
+with LatestMonth as 
+(
+  select
+    max(dateScanned) as maxDateScanned
+  from `fetch-analytics-proj.Production.ReceiptItemDetail`
+)
+
+select
+  date_trunc(dateScanned, month) as monthScanned
+  , brandName
+  , count(*) as count
+from `fetch-analytics-proj.Production.ReceiptItemDetail`
+where date_trunc(dateScanned, month) = (select maxDateScanned from LatestMonth)
+  and brandName is not null
+group by 1,2
+order by 1 desc, 3 desc
+limit 5
 ```
-**Explanation**: [Explain approach and findings]
+**Explanation**: This is how I would query to answer this question. However, the latest two months in the dataset do not have any brand data associated to the receipt items, so this will not return anything.
+However, if you expanded to look at the 3rd most recent month, you would have some results:
+
+![Question 1 and 2 Analysis w/ Additional month](./images/Question1and2Issue.png)
 
 ### Query 2: How does the ranking of the top 5 brands by receipts scanned for the recent month compare to the ranking for the previous month?
 ```sql
--- Insert SQL query here
-```
-**Explanation**: [Explain approach and findings]
+-- Previous Month
+with LatestMonth as 
+(
+  select
+    max(dateScanned) as maxDateScanned
+  from `fetch-analytics-proj.Production.ReceiptItemDetail`
+)
 
-### Query 3: When considering average spend from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
-```sql
--- Insert SQL query here
+select
+  date_trunc(dateScanned, month) as monthScanned
+  , brandName
+  , count(*) as count
+from `fetch-analytics-proj.Production.ReceiptItemDetail`
+where date_trunc(dateScanned, month) = date_sub((select maxDateScanned from LatestMonth), interval 1 month)
+  and brandName is not null
+group by 1,2
+order by 1 desc, 3 desc
+limit 5
 ```
-**Explanation**: [Explain approach and findings]
+**Explanation**: Similar to Question 1, this is how I would query to answer this question. However, the latest two months in the dataset do not have any brand data associated to the receipt items, so this will not return anything.
 
-### Query 4: When considering total number of items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+### Query 3 and 4: When considering average spend and items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
 ```sql
--- Insert SQL query here
+select
+  round(avg(if(rewardsReceiptStatus = 'FINISHED',totalSpent,null)),2) as AverageSpendWithAcceptedStatus
+  , round(avg(if(rewardsReceiptStatus = 'REJECTED',totalSpent,null)),2) as AverageSpendWithRejectedStatus
+  , sum(if(rewardsReceiptStatus = 'FINISHED',purchasedItemCount,null)) as TotalPurchasedItemsWithAcceptedStatus
+  , sum(if(rewardsReceiptStatus = 'REJECTED',purchasedItemCount,null)) as TotalPurchasedItemsWithRejectedStatus
+from `fetch-analytics-proj.Production.ReceiptItemDetail`
 ```
-**Explanation**: [Explain approach and findings]
+**Explanation**: I could simply average and sum the totalSpent and purchasedItemCount, respectively, in my analytics-ready table, ReceiptItemDetail. I had to assume that 'Accepted' = 'FINISHED' as there is not an 'Accepted' status directly in the dataset.
+
+Here are the results:
+
+![Question 3 and 4 Result](./images/Question3and4Result.png)
 
 ### Query 5: Which brand has the most spend among users who were created within the past 6 months?
 ```sql
--- Insert SQL query here
+with MaxUserDate as 
+(
+  select
+    max(createdDate) as maxUserCreatedDate
+  from `fetch-analytics-proj.Production.User`
+)
+
+select
+  brandName
+  , round(sum(totalSpent),2) as TotalSpentSum
+from `fetch-analytics-proj.Production.ReceiptItemDetail`
+where userCreatedDate >= date_sub((select MaxUserCreatedDate from MaxUserDate), interval 6 month)
+  and brandName is not null
+group by 1
+order by 2 desc
+limit 1
 ```
-**Explanation**: [Explain approach and findings]
+**Explanation**: I found the maximum user date and used this field to sum ReceiptItemDetail.totalSpent by users created in the last 6 months for each brandName and then seleted only the greatest result.
+
+Result: Tostitos with 15799.37 spent
 
 ### Query 6: Which brand has the most transactions among users who were created within the past 6 months?
 ```sql
--- Insert SQL query here
+with MaxUserDate as 
+(
+  select
+    max(createdDate) as maxUserCreatedDate
+  from `fetch-analytics-proj.Production.User`
+)
+
+select
+  brandName
+  , count(distinct receiptId) as TotalTransactions
+from `fetch-analytics-proj.Production.ReceiptItemDetail`
+where userCreatedDate >= date_sub((select MaxUserCreatedDate from MaxUserDate), interval 6 month)
+  and brandName is not null
+group by 1
+order by 2 desc
+limit 1
 ```
-**Explanation**: [Explain approach and findings]
+**Explanation**: Similarly to Question 5, I found the maximum user date and used this field to count distinct ReceiptItemDetail.receiptId by users created in the last 6 months for each brandName and then seleted only the greatest result. I had to assume that a transaction is defined as a receipt.
+
+Result: Swanson with 11 total transactions.
 
 
 
@@ -217,7 +302,7 @@ The following SQL queries address the business stakeholder questions and are loc
 All data quality SQL script examples are included in the data_quality folder.
 
 - Data Completeness
-  - Many data fields are fairly incomplete and have a significant amount or majority of NULL values. Some of these seem particularly problematic (like a receipt having not having a purchasedItemCount/totalSpent). Here are some examples:
+  - Many data fields are fairly incomplete and have a significant amount or majority of NULL values. Some of these seem particularly problematic (like a receipt not having a purchasedItemCount/totalSpent). Here are some examples:
     - Brand.categoryCode
     - Receipt.purchasedItemCount
     - User.lastLoginTimestamp
@@ -226,11 +311,12 @@ All data quality SQL script examples are included in the data_quality folder.
   - There are a handful of barcodes with different brandCodes which seems incorrect. Given I do not know the full context of the data, I did not remove these.
 ![Barcodes with Multiple BrandCodes](./images/BarcodesWithMultipleBrandCodes.png)
 - Inconsistent Values & Data Types
-  - The barcodes field in the Brand dataset is integer, but in the receipt item data, the barcodes are a string data type and have some non-integer characters.
-  - Several boolean fields have NULLs. Generally NULLs should be treated as FALSE. It will be risky to filter against these fields if there are NULLs.
-  - The brandCode contains string values, NULLs, and '' empty strings.  Mixing nulls and empty strings is not good practice, it should be one or the other (preferrably NULLs) because this makes it much harder to filter against this field properly.
+  - The barcodes field in the Brand dataset is integer, but in the receipt item data, the barcodes have a string data type and some non-integer characters.
+  - Several boolean fields have NULLs. Generally NULLs should be treated as FALSE. It will be risky to filter against these fields if there are NULLs. I decided not to expose any of these data fields in my production dataset as they were unnecessary for analysis and incomplete.
+  - The brandCode contains string values, NULLs, and '' empty strings.  Mixing nulls and empty strings is not good practice, it should be one or the other (preferrably NULLs) because, otherwise, this makes it much harder to filter against this field properly.
 - Unexpected Data Values
-  - 
+  - I already mentioned that the receiptItem.brandCode is a string, but there appears to be a value that is added when a re
+  - In ReceiptItem, there is one finalPrice that does not match either discountedItemPrice or itemPrice (receiptId = '600260210a720f05f300008f')
 - Other Checks Considered
   - Data freshness
     - Not relevant as this sample dataset is historical (Data from 2021 are the most recent)
@@ -240,14 +326,16 @@ All data quality SQL script examples are included in the data_quality folder.
     - Checking for orphaned records is not relevant here as each dataset has it's own primary key
 
 
-## 4. Questions for Stakeholder
-- To do: List questions that arose during analysis
+## 4. Questions for Stakeholders
+- 
+- Ask about audience/customer for the data
+- Do we care to capture snapshots of any tables daily or incrementally in case of backfilling needs?
+  - Lifecycle Management: If this is necessary GCP has built in capability to automatically move 
+  - Could also do this simpler with partitioning, but this might have increased storage costs compared to the above
 
-### Performance Considerations
+### Performance Considerations & Future Improvements
 - To do: Document any indexing strategies
 - To do: Explain partitioning decisions if applicable
 - To do: Note any potential scaling concerns
-
-## Future Improvements
 - To do: Document any potential enhancements
 - To do: Note areas for optimization
