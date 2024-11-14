@@ -23,6 +23,7 @@ The analysis uses three raw JSON data sources (from a MongoDB source):
 
 ### Initial Observations
 Before exploring the data, I created a Python script to process each json file to a BQ SQL-friendly format.  This primarily involved flattening the the MongoDB objects (I had to do a lot of research here as I was unfamiliar with MongoDB json formats) and then updating the files to be in a new line delimited JSON format.  This is contained in the process_json.py script:
+
 ```python
 import json
 
@@ -92,6 +93,7 @@ Methods used to explore the data:
 ![BQ Table Explorer Example](./images/BQTableExplorerExample.png)
 
 - Simple SQL aggregations to look for duplicates and unique field values.  Here are a couple examples:
+
 ```sql
 select
   _id
@@ -136,7 +138,7 @@ Once the processed json files were imported to tables in BQ, these were my obser
 
     
 ## 1. Data Model
-I created a strucutred relational data model using Miro. The model shows the relationship between the raw data through the simple transformation layer I created to a final dataset that will be used for analytics to answer the stakeholder's questions.
+I created a structured, relational data model using Miro. The model shows the relationship between the raw data through the simple transformation layer I created to a final dataset that will be used for analytics to answer the stakeholder's questions.
 
 ![Data Model](./images/DataModel.png)
 
@@ -173,6 +175,7 @@ All transformation and the final analytics layer scripts are in the production_d
   - ReceiptItemDetail.sql
   - User.sql
 
+
 ## 2. Analysis Queries
 
 The following SQL queries address the business stakeholder questions and are located in the repo here:
@@ -182,6 +185,7 @@ The following SQL queries address the business stakeholder questions and are loc
   - 5and6_BrandWithMostSpendAndTransactionsAmongNewUsers.sql
 
 ### Query 1: What are the top 5 brands by receipts scanned for most recent month?
+
 ```sql
 -- Latest Month
 with LatestMonth as 
@@ -202,12 +206,14 @@ group by 1,2
 order by 1 desc, 3 desc
 limit 5
 ```
+
 **Explanation**: This is how I would query to answer this question. However, the latest two months in the dataset do not have any brand data associated to the receipt items, so this will not return anything.
 However, if you expanded to look at the 3rd most recent month, you would have some results:
 
-![Question 1 and 2 Analysis w/ Additional month](./images/Question1and2Issue.png)
+![Question 1 and 2 Analysis](./images/Question1and2Issue.png)
 
 ### Query 2: How does the ranking of the top 5 brands by receipts scanned for the recent month compare to the ranking for the previous month?
+
 ```sql
 -- Previous Month
 with LatestMonth as 
@@ -228,9 +234,11 @@ group by 1,2
 order by 1 desc, 3 desc
 limit 5
 ```
+
 **Explanation**: Similar to Question 1, this is how I would query to answer this question. However, the latest two months in the dataset do not have any brand data associated to the receipt items, so this will not return anything.
 
 ### Query 3 and 4: When considering average spend and items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+
 ```sql
 select
   round(avg(if(rewardsReceiptStatus = 'FINISHED',totalSpent,null)),2) as AverageSpendWithAcceptedStatus
@@ -239,9 +247,10 @@ select
   , sum(if(rewardsReceiptStatus = 'REJECTED',purchasedItemCount,null)) as TotalPurchasedItemsWithRejectedStatus
 from `fetch-analytics-proj.Production.ReceiptItemDetail`
 ```
+
 **Explanation**: I could simply average and sum the totalSpent and purchasedItemCount, respectively, in my analytics-ready table, ReceiptItemDetail. I had to assume that 'Accepted' = 'FINISHED' as there is not an 'Accepted' status directly in the dataset.
 
-Results: The average spend and total purchased items are greater for receipts with 'FINISHED' status vs 'REJECTED' status.
+Results: The average spend and total purchased items are greater for receipts with 'FINISHED' status vs 'REJECTED' status
 
 ![Question 3 and 4 Result](./images/Question3and4Result.png)
 
@@ -289,8 +298,7 @@ limit 1
 ```
 **Explanation**: Similarly to Question 5, I found the maximum user date and used this field to count distinct ReceiptItemDetail.receiptId by users created in the last 6 months for each brandName and then seleted only the greatest result. I had to assume that a transaction is defined as a receipt.
 
-Result: Swanson with 11 total transactions.
-
+Result: Swanson with 11 total transactions
 
 
 ## 3. Data Quality Assessment
