@@ -5,7 +5,7 @@
 2. [Data Model](#1-data-model)
 3. [Analysis Queries](#2-analysis-queries)
 4. [Data Quality Assessment](#3-data-quality-assessment)
-5. [Questions for Stakeholder](#4-questions-for-stakeholder)
+5. [Questions for Stakeholders](#4-questions-for-stakeholders)
 
 ## Overview
 This repository contains my solution to the Fetch Rewards Analytics Engineering coding challenge. The challenge involves analyzing receipt, user, and brand data to derive business insights and address data quality concerns. I primarily used Google Cloud Platform (GCP) BigQuery (BQ) SQL and even set up a dummy project in GCP. 
@@ -145,7 +145,7 @@ I created a structured, relational data model using Miro. The model shows the re
 Discussion:
 - While the model is simple, there is some storage duplication in that I am essentially replicating the raw data layer in the transformation layer and only updating a few fields while not exposing a few others. I'm doing this to show an ELT pipeline. Extract raw data, load it to BQ, and transform it as necessary. 
 - The only dataset in the analytics layer is also simply set up to solve the questions posed by the business stakeholder. This is efficient and performant given that I do not have full context of the data or if there are specific analytics and reporting requirements.
-- I considered adding some additional datasets in both the tranformation and analytics layers like the below. But in the end, I decided these were outside the scope of this project's purpose.
+- I considered adding some additional datasets in both the transformation and analytics layers like the below. But in the end, I decided these were outside the scope of this project's purpose.
   - Other dimensional tables for partners
   - Or metrics views for a guess at some metrics that may be important to Fetch (maybe comparing points earned to dollars spent, etc)
   - Or maybe a slowly-changing dimension for monitoring user data like logins
@@ -164,7 +164,7 @@ Discussion:
   - This table functions as a fact table at the most granular data level (receiptItemId) and joins the four transformation tables to access all necessary data fields for analysis
 - The data model allows us to consider and analyze all stakeholder questions
 
-### Data Tranformation Layer
+### Data Transformation Layer
 I transformed the raw data tables in order to parse date/time fields into a useable format, unnest arrays, remove duplicates, rename primary key fields, etc. I tried to keep renaming of fields to a minimum so that it's easy to follow along.
 
 All transformation and the final analytics layer scripts are in the production_data folder.
@@ -296,7 +296,7 @@ group by 1
 order by 2 desc
 limit 1
 ```
-**Explanation**: Similarly to Question 5, I found the maximum user date and used this field to count distinct ReceiptItemDetail.receiptId by users created in the last 6 months for each brandName and then seleted only the greatest result. I had to assume that a transaction is defined as a receipt.
+**Explanation**: Similarly to Question 5, I found the maximum user date and used this field to count distinct ReceiptItemDetail.receiptId by users created in the last 6 months for each brandName and then selected only the greatest result. I had to assume that a transaction is defined as a receipt.
 
 Result: Swanson with 11 total transactions
 
@@ -391,7 +391,7 @@ from `fetch-analytics-proj.Production.Receipt`
     - Checking for orphaned records is not relevant here as each dataset has it's own primary key.
 
 
-## 4. Questions for Stakeholders (Slack Messages)
+## 4. Questions for Stakeholders
 First of all, I would compose several different Slack messages because I have many questions about the dataset overall.
 - First, in regard to the questions they asked (I would send this before I sent them the results):
   - Hi, stakeholderName 👋 I have a few questions about the metrics you requested:
@@ -425,7 +425,7 @@ First of all, I would compose several different Slack messages because I have ma
     - I'd like to implement data protection for the entire dataset. Do you have a preference or any questions about these options?
       - Data restoration
         - Table snapshots
-          - Could take daily snaphots of tables so that we could restore them to a previous state if needed
+          - Could take daily snapshots of tables so that we could restore them to a previous state if needed
       - Data loss 
         - Time Travel
           - GCP has a built-in feature where we can access data from the last 7 days
