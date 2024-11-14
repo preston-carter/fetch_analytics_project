@@ -1,4 +1,4 @@
-# Fetch Rewards Analytics Engineering Challenge Documentation
+ï»¿# Fetch Rewards Analytics Engineering Challenge Documentation
 
 ## Table of Contents
 1. [Overview](#overview)
@@ -233,7 +233,7 @@ limit 5
 ```
 **Explanation**: Similar to Question 1, this is how I would query to answer this question. However, the latest two months in the dataset do not have any brand data associated to the receipt items, so this will not return anything.
 
-### Query 3 and 4: When considering average spend and items purchased from receipts with 'rewardsReceiptStatus’ of ‘Accepted’ or ‘Rejected’, which is greater?
+### Query 3 and 4: When considering average spend and items purchased from receipts with 'rewardsReceiptStatusâ€™ of â€˜Acceptedâ€™ or â€˜Rejectedâ€™, which is greater?
 ```sql
 select
   round(avg(if(rewardsReceiptStatus = 'FINISHED',totalSpent,null)),2) as AverageSpendWithAcceptedStatus
@@ -247,6 +247,8 @@ from `fetch-analytics-proj.Production.ReceiptItemDetail`
 Here are the results:
 
 ![Question 3 and 4 Result](./images/Question3and4Result.png)
+
+The average spend and total purchased items are greater for receipts with 'FINISHED' status vs 'REJECTED' status.
 
 ### Query 5: Which brand has the most spend among users who were created within the past 6 months?
 ```sql
@@ -307,37 +309,66 @@ All data quality SQL script examples are included in the data_quality folder.
     - Receipt.purchasedItemCount
     - User.lastLoginTimestamp
 - Data Uniqueness
-  - The raw users table contains many pure duplicates idenitifiable with the following query (user_duplicates.sql). After removing these, there are no remaining user duplicates (like a userId with 2 different roles for example). These were removed from the User table during data transformation.
+  - The raw users table contains many pure duplicates idenitifiable with the following query (DataUniqueness_UserDuplicates.sql). After removing these, there are no remaining user duplicates (like a userId with 2 different roles for example). These were removed from the User table during data transformation.
   - There are a handful of barcodes with different brandCodes which seems incorrect. Given I do not know the full context of the data, I did not remove these.
 
 ![Barcodes with Multiple BrandCodes](./images/BarcodesWithMultipleBrandCodes.png)
 
 - Inconsistent Values & Data Types
   - The barcodes field in the Brand dataset is integer, but in the receipt item data, the barcodes have a string data type and some non-integer characters.
-  - Several boolean fields have NULLs. Generally NULLs should be treated as FALSE. It will be risky to filter against these fields if there are NULLs. I decided not to expose any of these data fields in my production dataset as they were unnecessary for analysis and incomplete.
+  - Several boolean fields have NULLs. Generally NULLs should be treated as FALSE. It will be risky or less reliable to filter against these fields if there are NULLs. I decided not to expose any of these data fields in my production dataset as they were unnecessary for analysis and incomplete.
   - The brandCode contains string values, NULLs, and '' empty strings.  Mixing nulls and empty strings is not good practice, it should be one or the other (preferrably NULLs) because, otherwise, this makes it much harder to filter against this field properly.
 - Unexpected Data Values
-  - I already mentioned that the receiptItem.brandCode is a string, but there appears to be a value that is added when a re
-  - In ReceiptItem, there is one finalPrice that does not match either discountedItemPrice or itemPrice (receiptId = '600260210a720f05f300008f')
+  - I already mentioned that the receiptItem.brandCode is a string, but there appears to be a value (4011) that is added when a barcode is invalid, should NULLs also have this value?
+  - In ReceiptItem, there is one finalPrice that does not match either discountedItemPrice or itemPrice (receiptId = '600260210a720f05f300008f').
+  - In RawReceipt.rewardsReceiptItemList (because I did not expose this field), there is an itemNumber field that is mostly NULL but when it's not a majority of the records have a 4023 value.
+  - In Receipt, there are many NULLs for totalSpent (and itemsPurchased). This is unexpected as I would assume a receipt should always have at least one item purchased and it's associated price.
 - Other Checks Considered
   - Data freshness
-    - Not relevant as this sample dataset is historical (Data from 2021 are the most recent)
+    - Not relevant as this sample dataset is historical (Data from 2021 are the most recent).
   - Statistical Anomalies
-    - Given that the sample size of this dataset is rather small, it is not relevant (and likely misleading) to check for any statistical outliers
+    - Given that the sample size of this dataset is rather small, it is not relevant (and likely misleading) to check for any statistical outliers.
   - Referential Integrity
-    - Checking for orphaned records is not relevant here as each dataset has it's own primary key
+    - Checking for orphaned records is not relevant here as each dataset has it's own primary key.
 
 
-## 4. Questions for Stakeholders
-- 
-- Ask about audience/customer for the data
-- Do we care to capture snapshots of any tables daily or incrementally in case of backfilling needs?
-  - Lifecycle Management: If this is necessary GCP has built in capability to automatically move 
-  - Could also do this simpler with partitioning, but this might have increased storage costs compared to the above
+## 4. Questions for Stakeholders (Slack Messages)
+First of all, I would compose several different Slack messages because I have many questions about the dataset overall.
+- First, in regard to the questions they asked (I would send this before I sent them the results):
+  - Hi, stakeholderName ðŸ‘‹ I have a few questions about the metrics you requested:
+    - We do not have any entered brand information for receipts scanned in the last 2 months.
+      - Would you like to know the top 5 brands for the 2 most recent months for which we do have data?
+    - You are interested in the average spend and total items purchased for 'Accepted' receipts, but the rewardsReceiptStatus field does not store this status.
+      - Is 'Accepted' status equivalent to a status of 'FINISHED'? 
+    - You are also interested in transactions among users who were created in the last 6 months. 
+      - Could you define transaction for me? Would a transaction be equivalent to a processed receipt?
+  - Thank you!
+- Second, in regard to overall questions about the data and it's use (I would send this before I modeled the data):
+  - Hello, stakeholderName! I have a few questions about the data if you could help me ðŸ˜Š
+    - Could you tell me a about the intended audience/consumer of the data that I'm modeling?
+    - Is this a one-off request or do we anticipate that business users will regularly be querying these data?
+    - Do we anticipate expanding this model to include additional datasets?
+    - Are these data mature and complete? Do we expect or know of any issues with the data?
+- Third, in regard to the data quality issues identified (I would start a thread or probably better, a temporary channel, and resolve these one or two at a time):
+  - Hi again, stakeholderName! I identified a few data quality issues with the dataset. I am hoping you can help me resolve them. Could we start by looking at these two issues:
+    - The raw users table contains many duplicate records. Could you tell me more about how the data are capture or could you point me to someone in engineering that could help? I'd like to see if we could fix this at the source.
+    - Can you take a look at this image and let me know if you expect barcodes to be associated with more than 1 brandCode? There are a few cases of this.
 
-### Performance Considerations & Future Improvements
-- To do: Document any indexing strategies
-- To do: Explain partitioning decisions if applicable
-- To do: Note any potential scaling concerns
-- To do: Document any potential enhancements
-- To do: Note areas for optimization
+![Barcodes with Multiple BrandCodes](./images/BarcodesWithMultipleBrandCodes.png)
+
+- Finally, in regard to the optimization and performance/scaling topics:
+  - Hello, stakeholderName ðŸ‘‹ I'd like to hop on a call to discuss some of the longer-term optimization and performance considerations for the entire dataset.  My primary questions/concerns are:
+    - I am planning to expose two tables that store one record for each item on a user's receipt. These datasets will grow rather large over time.
+      - Are we okay with partitioning these tables?
+      - Do we need the entire history of receipts? 
+        - If not we could just expose the last year or two and also create a backup of historical data in a data lake or cloud storage.
+    - I'd like to implement data protection for the entire dataset. Do you have a preference or any questions about these options?
+      - Data restoration
+        - Table snapshots
+          - Could take daily snaphots of tables so that we could restore them to a previous state if needed
+      - Data loss 
+        - Time Travel
+          - GCP has a built-in feature where we can access data from the last 7 days
+          - We would need to implement daily, automated monitoring so we could backfill if any outages occur before the 7 day period expires
+        - Cross-region snapshots
+          - This would protect against data pipeline outages in multiple regions but would increase costs

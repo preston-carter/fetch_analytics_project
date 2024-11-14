@@ -1,4 +1,12 @@
 select
+  barcode
+  , count(*)
+from `fetch-analytics-proj.Production.Brand`
+group by 1
+order by 2 desc
+;
+
+select
   *
 from `fetch-analytics-proj.Production.Brand`
 -- I converted barcode to string in the Brand table to be consistent with ReceiptItem.barcode data type
